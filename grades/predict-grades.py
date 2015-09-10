@@ -2,14 +2,34 @@
 # Predict the Missing Grade (https://www.hackerrank.com/challenges/predict-missing-grade)
 
 import json
+from math import log, exp
+from random import random
+from collections import Counter
+from datum import Datum
+from stump import DecisionStump
 
-# XXX go home and check iif this is right....
+# map feature string to index
+features = {
+	"English": 0,
+	"Physics": 1,
+	"Chemistry": 2,
+	"ComputerScience": 3,
+	"Biology": 4,
+	"PhysicalEducation": 5,
+	"Economics": 6,
+	"Accountancy": 7,
+	"BusinessStudies": 8
+}
+D = len(features)
 
-############## DECISION STUMP ##############
+# list of data
+data = []
+
 
 ############### ADABOOST ###################
 
-def initializeWeights(data):
+
+def initializeWeights():
     """
     Initialize all weights.
     """
@@ -17,7 +37,8 @@ def initializeWeights(data):
     for d in data:
         d.weight = w
 
-def sampleData(data, n):
+
+def sampleData(n):
     """
     Returns a list of n data instances sampled from data according to
     the distribution of weights.
@@ -35,12 +56,14 @@ def sampleData(data, n):
                 break
     return sampleList
 
-def reweight(data, predictions, accuracy):
+
+def reweight(predictions, error):
     """
     Reweighting. See Schapire 1999.
     """
+    # XXX Fix reweighting....
     # error of this ensemble
-    error = 1 - accuracy
+    #error = 1 - accuracy
     # perturb by epsilon to prevent getting log(0)
     if error == 1:
         error -= 0.00001
@@ -64,27 +87,86 @@ def reweight(data, predictions, accuracy):
     # normalize, to get a probability distribution
     for d in data:
         d.weight /= z_t
+    # return this model's weight
+    return alpha
+
 
 ###################### MAIN ######################
+
 
 # parse JSON input (either training or test)
 def parseInput(filename):
 	content = open(filename).readlines()
 	for line in content[1:]:
 		record = json.loads(line)
+		x = [0] * D
+		label = None
+
 		for subject in record.keys():
 			if subject == "Mathematics":
 				#label
-				print(subject, record[subject])
+				label = record[subject]
 			elif subject != "serial":
 				#features
-				print(subject, record[subject])
+				x[features[subject]] = record[subject]
 
+		d = Datum(x)
+		if label:
+			d.label = label
+		data.append(d)
+	
+
+
+# parse test output file
+def parseOutput(filename):
+	content = open(filename).readlines()
+	for l, d in zip(content, data):
+		d.label = int(l)
+
+
+# train stump to classify based on majority class for each
+# value of its root features
+def trainStump(stump, sample):
+	groups = [Counter() for x in range(D)]
+	for d in sample:
+		groups[d.features[stump.root]][d.label] += 1
+	for i in range(D):
+		if len(groups[i]) != 0:
+			biggest =  max(groups[i].items(), key=lambda x: x[1])
+			stump.classes[i] = biggest[0]
+
+
+# train ensemble of decision stumps using AdaBoost
+# return list of (m, a) where m is the base model and a is its weight
 def train():
-	pass
+	ensemble = []
+	initializeWeights()
 
-def test():
+	for i in range(D):
+		# new base learner
+		stump = DecisionStump(i, 8) #8 is number of possible grades
+		# sample
+		sample = sampleData(10) # XXX how many samples?
+		# train base learner on sample
+		trainStump(stump, sample)
+		# predict for all data
+		predictions = [stump.classify(d) for d in data]
+		# calculate error
+		error = sum([d.weight * (1 if d.label != p else 0) for d,p in zip(data, predictions)])
+		# reweight
+		alpha = reweight(predictions, error)
+		# add to ensemble
+		ensemble.append((stump, alpha))
+
+	return ensemble
+
+	
+
+def test(ensemble):
 	pass
 
 if __name__ == '__main__':
 	parseInput("small/training.json")
+	ensemble = train()
+	for stump, alpha in ensemble:
+		print(alpha, stump.root, stump.classes)
