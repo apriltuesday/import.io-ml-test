@@ -22,6 +22,7 @@ features = {
 }
 D = len(features)
 K = 8 # number of grade levels (classes for classification)
+classes = range(K) #note 0 corr. to 1
 
 # list of data
 data = []
@@ -83,11 +84,11 @@ def parseInput(filename):
 				label = record[subject]
 			elif subject != "serial":
 				#features
-				x[features[subject]] = record[subject]
+				x[features[subject]] = record[subject] - 1
 
 		d = Datum(x)
 		if label: #only training data is labeled
-			d.label = label
+			d.label = label - 1
 		data.append(d)
 
 
@@ -97,7 +98,7 @@ def parseOutput(filename):
 	"""
 	content = open(filename).readlines()
 	for l, d in zip(content, data):
-		d.label = int(l)
+		d.label = int(l) - 1
 
 
 def splitEntropy(split):
@@ -106,12 +107,12 @@ def splitEntropy(split):
 	"""
 	total = 0.0
 	# XXX does this deal with weighted data appropriately?
-	for j in range(K):
+	for j in classes: #note in this case, set of classes and set of feature values are the same
 		N_j = sum([x[1] for x in split[j].items()])
 		if N_j == 0:
 			continue
 		partial = 0.0
-		for i in range(K):
+		for i in classes:
 			p_ij = float(split[j][i]) / N_j
 			if p_ij != 0:
 				partial += p_ij * log(p_ij)
@@ -131,12 +132,10 @@ def trainStump():
 	for f in range(D):
 		# each group counts the number of data points with a particular
 		# label for a particular value of this feature
-		split = [Counter() for x in range(K)]
+		split = [Counter() for x in classes]
 		for d in data:
-			split[d.features[f]-1][d.label-1] += d.weight
+			split[d.features[f]][d.label] += d.weight
 
-		#for x in range(K):
-		#	print(split[x])
 		#compute entropy of this split
 		entropy = splitEntropy(split)
 		if entropy < minEnt:
@@ -146,10 +145,10 @@ def trainStump():
 
 	stump = DecisionStump(minEntFeat, K)
 	# for each branch of the best split, assign the majority label
-	for i in range(K):
+	for i in classes:
 		if len(split[i]) != 0:
 			biggest =  max(split[i].items(), key=lambda x: x[1])
-			stump.classes[i+1] = biggest[0] + 1
+			stump.classes[i] = biggest[0]
 	return stump
 
 
@@ -192,8 +191,10 @@ def test(ensemble):
 	initializeWeights()
 	predictions = []
 	for d in data:
-		probs = [(a if d.label == m.classify(d) else 0) for m,a in ensemble]
-		predictions.append(max(range(1,8), key = lambda i : probs[i]))
+		probs = []
+		for k in classes:
+			probs.append(sum([(a if m.classify(d) == k else 0) for m,a in ensemble]))
+		predictions.append(max(classes, key = lambda i : probs[i]))
 	return 1.0 - weightedError(predictions)
 
 

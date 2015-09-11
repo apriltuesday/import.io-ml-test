@@ -7,7 +7,7 @@ class DecisionStump:
 		self.root = root #root feature index
 		# class label for each possible value
 		# default value is in the middle
-		self.classes = [int((numValues+1)/2.0)] * (numValues+1)
+		self.classes = [int(numValues/2.0)] * numValues
 
 	# classification based on majority class
 	def classify(self, d):
