@@ -88,7 +88,7 @@ def parseInput(filename):
 		d = Datum(x)
 		if label: #only training data is labeled
 			d.label = label
-		data.append(d)	
+		data.append(d)
 
 
 def parseOutput(filename):
@@ -100,19 +100,57 @@ def parseOutput(filename):
 		d.label = int(l)
 
 
-# XXX Fix this: should return the stump
-# and choose root based on info gain
+def splitEntropy(split):
+	"""
+	Compute entropy of this split
+	"""
+	total = 0.0
+	# XXX does this deal with weighted data appropriately?
+	for j in range(K):
+		N_j = sum([x[1] for x in split[j].items()])
+		if N_j == 0:
+			continue
+		partial = 0.0
+		for i in range(K):
+			p_ij = float(split[j][i]) / N_j
+			if p_ij != 0:
+				partial += p_ij * log(p_ij)
+		total += N_j * partial
+	return -total
+
+
 def trainStump():
 	"""
 	Train one decision stump on the weighted data.
 	"""
-	groups = [Counter() for x in range(D)]
-	for d in data:
-		groups[d.features[stump.root]][d.label] += d.weight
-	for i in range(D):
-		if len(groups[i]) != 0:
-			biggest =  max(groups[i].items(), key=lambda x: x[1])
-			stump.classes[i] = biggest[0]
+	# for each feature, measure the entropy of the split
+	# split on the feature that minimizes this
+	minEnt = float("inf")
+	minEntSplit = None
+	minEntFeat = 0
+	for f in range(D):
+		# each group counts the number of data points with a particular
+		# label for a particular value of this feature
+		split = [Counter() for x in range(K)]
+		for d in data:
+			split[d.features[f]-1][d.label-1] += d.weight
+
+		#for x in range(K):
+		#	print(split[x])
+		#compute entropy of this split
+		entropy = splitEntropy(split)
+		if entropy < minEnt:
+			minEnt = entropy
+			minEntSplit = split
+			minEntFeat = f
+
+	stump = DecisionStump(minEntFeat, K)
+	# for each branch of the best split, assign the majority label
+	for i in range(K):
+		if len(split[i]) != 0:
+			biggest =  max(split[i].items(), key=lambda x: x[1])
+			stump.classes[i+1] = biggest[0] + 1
+	return stump
 
 
 def weightedError(predictions):
@@ -122,16 +160,17 @@ def weightedError(predictions):
 	return sum([d.weight * (1 if d.label != p else 0) for d,p in zip(data, predictions)])
 
 
-def train():
+def train(numModels):
 	"""
-	Train ensemble of decision stumps using (multiclass) AdaBoost.
+	Train ensemble of numModels decision stumps using (multiclass)
+	AdaBoost.
 	Return list of (m, a) where m is the decision stump and a is its
 	weight in the final ensemble.
 	"""
 	ensemble = []
 	initializeWeights()
 
-	for i in range(D):
+	for i in range(numModels):
 		# train new base learner
 		stump = trainStump()
 		# make predictions and comput error for this learner
@@ -155,16 +194,18 @@ def test(ensemble):
 	for d in data:
 		probs = [(a if d.label == m.classify(d) else 0) for m,a in ensemble]
 		predictions.append(max(range(1,8), key = lambda i : probs[i]))
-	print(predictions)
 	return 1.0 - weightedError(predictions)
 
 
 if __name__ == '__main__':
-	parseInput("small/training.json")
-	ensemble = train()
+	#parseInput("small/training.json")
+	parseInput("training-and-test/training.json")
+	ensemble = train(10)
 	data = []
-	parseInput("small/test.in.json")
-	parseOutput("small/test.out.json")
+	#parseInput("small/test.in.json")
+	#parseOutput("small/test.out.json")
+	parseInput("training-and-test/sample-test.in.json")
+	parseOutput("training-and-test/sample-test.out.json")
 	accuracy = test(ensemble)
 	for stump, alpha in ensemble:
 		print(alpha, stump.root, stump.classes)
