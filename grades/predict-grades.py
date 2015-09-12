@@ -4,9 +4,7 @@
 import json
 from math import log, exp
 from random import random
-from collections import Counter
-from datum import Datum
-from stump import DecisionStump
+from utils import Datum, DecisionStump
 
 # map feature string to index
 features = {
@@ -20,15 +18,14 @@ features = {
 	"Accountancy": 7,
 	"BusinessStudies": 8
 }
-D = len(features)
-K = 8 # number of grade levels (classes for classification)
-classes = range(K) #note 0 corr. to 1
+numFeatures = len(features)
+numClasses = 8 # number of grade levels (classes for classification)
 
 # list of data
 data = []
 
 
-############### ADABOOST ###################
+###################### ADABOOST ######################
 
 
 def initializeWeights():
@@ -42,7 +39,7 @@ def initializeWeights():
 
 def reweight(predictions, error):
     """
-    Reweighting. See Schapire 1999.
+    Reweighting. See Zhu et al. 2006 on multiclass AdaBoost.
     """
     # perturb by epsilon to prevent getting log(0)
     if error == 1:
@@ -50,12 +47,12 @@ def reweight(predictions, error):
     elif error == 0: # did perfectly, don't reweight
         return
     # importance factor
-    alpha = log((1.0 - error) / error) + log(K - 1.0)
+    alpha = log((1.0 - error) / error) + log(numClasses - 1.0)
     # normalization factor (running sum)
     z_t = 0.0
     # update weights (numerator)
     for d, p in zip(data, predictions):
-        d.weight *= exp(alpha * (1 if p != d.label else 0))
+        d.weight *= exp(alpha * (1.0 if p != d.label else 0.0))
         z_t += d.weight
     # normalize, to get a probability distribution
     for d in data:
@@ -64,7 +61,7 @@ def reweight(predictions, error):
     return alpha
 
 
-###################### MAIN ######################
+###################### FILE INPUT ######################
 
 
 def parseInput(filename):
@@ -75,7 +72,7 @@ def parseInput(filename):
 	content = open(filename).readlines()
 	for line in content[1:]:
 		record = json.loads(line)
-		x = [0] * D
+		x = [0] * numFeatures
 		label = None
 
 		for subject in record.keys():
@@ -101,55 +98,7 @@ def parseOutput(filename):
 		d.label = int(l) - 1
 
 
-def splitEntropy(split):
-	"""
-	Compute entropy of this split
-	"""
-	total = 0.0
-	# XXX does this deal with weighted data appropriately?
-	for j in classes: #note in this case, set of classes and set of feature values are the same
-		N_j = sum([x[1] for x in split[j].items()])
-		if N_j == 0:
-			continue
-		partial = 0.0
-		for i in classes:
-			p_ij = float(split[j][i]) / N_j
-			if p_ij != 0:
-				partial += p_ij * log(p_ij)
-		total += N_j * partial
-	return -total
-
-
-def trainStump():
-	"""
-	Train one decision stump on the weighted data.
-	"""
-	# for each feature, measure the entropy of the split
-	# split on the feature that minimizes this
-	minEnt = float("inf")
-	minEntSplit = None
-	minEntFeat = 0
-	for f in range(D):
-		# each group counts the number of data points with a particular
-		# label for a particular value of this feature
-		split = [Counter() for x in classes]
-		for d in data:
-			split[d.features[f]][d.label] += d.weight
-
-		#compute entropy of this split
-		entropy = splitEntropy(split)
-		if entropy < minEnt:
-			minEnt = entropy
-			minEntSplit = split
-			minEntFeat = f
-
-	stump = DecisionStump(minEntFeat, K)
-	# for each branch of the best split, assign the majority label
-	for i in classes:
-		if len(split[i]) != 0:
-			biggest =  max(split[i].items(), key=lambda x: x[1])
-			stump.classes[i] = biggest[0]
-	return stump
+###################### MAIN TRAINING & TEST ######################
 
 
 def weightedError(predictions):
@@ -157,6 +106,22 @@ def weightedError(predictions):
 	Calculate weighted error of predictions.
 	"""
 	return sum([d.weight * (1 if d.label != p else 0) for d,p in zip(data, predictions)])
+
+
+def score(predictions):
+	"""
+	Score = 100 * ((C-W)/N)
+	Where C = Number of Correct predictions, not more than one grade point away from the actual grade point assigned.
+	W = Number of wrong (incorrect) predictions and
+	N = Total number of records in the input. 
+	"""
+	C = 0
+	N = len(data)
+	for p, d in zip(predictions, data):
+		if abs(p - d.label) <= 1:
+			C += 1
+	score = 100 * ((C - (N-C)) / N)
+	return score
 
 
 def train(numModels):
@@ -171,8 +136,9 @@ def train(numModels):
 
 	for i in range(numModels):
 		# train new base learner
-		stump = trainStump()
-		# make predictions and comput error for this learner
+		stump = DecisionStump(numClasses)
+		stump.train(data, numFeatures)
+		# make predictions and compute error for this learner
 		predictions = [stump.classify(d) for d in data]
 		error = weightedError(predictions)
 		# reweight
@@ -190,24 +156,29 @@ def test(ensemble):
 	"""
 	initializeWeights()
 	predictions = []
+	classes = range(numClasses)
 	for d in data:
-		probs = []
+		# each model makes a weighted vote for a class
+		# we choose the class with the majority vote
+		votes = []
 		for k in classes:
-			probs.append(sum([(a if m.classify(d) == k else 0) for m,a in ensemble]))
-		predictions.append(max(classes, key = lambda i : probs[i]))
-	return 1.0 - weightedError(predictions)
+			votes.append(sum([(a if m.classify(d) == k else 0) for m,a in ensemble]))
+		predictions.append(max(classes, key = lambda i : votes[i]))
+	return predictions
 
 
 if __name__ == '__main__':
-	#parseInput("small/training.json")
 	parseInput("training-and-test/training.json")
-	ensemble = train(10)
+	ensemble = train(25)
 	data = []
-	#parseInput("small/test.in.json")
-	#parseOutput("small/test.out.json")
 	parseInput("training-and-test/sample-test.in.json")
 	parseOutput("training-and-test/sample-test.out.json")
-	accuracy = test(ensemble)
+	predictions = test(ensemble)
+	accuracy = 1.0 - weightedError(predictions)
+	score = score(predictions)
+	print("Ensemble:")
 	for stump, alpha in ensemble:
 		print(alpha, stump.root, stump.classes)
-	print(accuracy)
+	print()
+	print("Classification accuracy:", accuracy)
+	print("Hackerrank score:", score)
