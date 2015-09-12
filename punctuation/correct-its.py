@@ -1,7 +1,6 @@
 # April Shen -- 2015-09-11
 # The Punctuation Corrector (https://www.hackerrank.com/challenges/punctuation-corrector-its)
-import nltk, re
-from nltk.corpus import gutenberg, webtext, brown, inaugural
+import re
 from queue import PriorityQueue as PQ
 
 
@@ -22,7 +21,7 @@ def getNgrams(corpus, frequencies, sub, head, tail):
     tLength = min(len(tail), 4)
          
     # Generates ngrams of lengths 2 <= n <= 5
-    for i in range(0,hLength+1):
+    for i in range(0, hLength+1):
         for j in range(0, min(4-i+1, tLength+1)):
             ngram = list(head[len(head)-i:]) + [sub] + list(tail[:j])
             ngrams.append(ngram)
@@ -39,49 +38,78 @@ def getNgrams(corpus, frequencies, sub, head, tail):
             frequencies.put(((1.0/n, 1.0/freq), (sub, n, freq)))
        
 
-# Searches corpora for number of instances of an ngram, returns count
 def searchCorpus(corpus, ngram):
-    words = " ".join(ngram)
-    count = corpus.count(words)
-    return count
+	"""
+	Searches corpus for number of instances of an ngram.
+	"""
+	words = " ".join(ngram)
+	count = corpus.count(words)
+	return count
 
 
 def readCorpus():
-	f =  open("corpus.txt", encoding="utf-8")
-	corpus = "".join(f.readlines()).lower()
-	# add some nltk corpora
-	# brown corpus contains annotations, which we remove
-	browntext = brown.raw()
-	browntext = re.sub(r'/.*?\s',' ',browntext)
-	corpus += gutenberg.raw() + "\n" + webtext.raw() + "\n" + browntext  + "\n" + inaugural.raw()
+	"""
+	Read in corpus file and return as a single string.
+	"""
+	with open("corpus.txt", encoding="utf-8") as f:
+		corpus = "".join(f.readlines()).lower()
 	return corpus
 
 
 def parseInput(filename):
-	# return list of heads and tails, divided by ???
+	"""
+	Parses input file.
+	Return list of heads and tails, divided by ??? which are the 
+	locations of it's/its.
+	"""
 	delimiter = "???"
 	parsed = []
 	with open(filename) as f:
 		for line in f.readlines()[1:]:
-			i = line.index(delimiter)
-			parsed.append(tuple(line.split(delimiter)))
+			tup = tuple(line.lower().split(delimiter))
+			if len(tup) == 2:
+				parsed.append(tup)
+			else: # handle sentences with multipe ???
+				for i in range(len(tup)-1):
+					parsed.append((tup[i], tup[i+1]))
 	return parsed
 
 
-def parseOutput():
-	pass
+def parseOutput(filename):
+	"""
+	Parses output file.
+	Return a list of all the it's/its in order.
+	"""
+	answers = []
+	with open(filename) as f:
+		for line in f.readlines():
+			answers += re.findall("it'?s", line)
+	return [a.lower() for a in answers]
 
 
 if __name__ == "__main__":
+	# setup
 	corpus = readCorpus()
-	contexts = parseInput("input-and-output/sample-input.txt")
+	contexts = parseInput("input-and-output/test-input.txt")
+	answers = parseOutput("input-and-output/test-output.txt")
 	frequencies = PQ()
+	guesses = []
 
-	# XXX handle multiple ??? per sentence
+	# search corpus for n-grams
 	for head,tail in contexts:
 		getNgrams(corpus, frequencies, "its", head, tail)
 		getNgrams(corpus, frequencies, "it's", head, tail)
+		# also check for "it is" and "it has"
+		getNgrams(corpus, frequencies, "it is", head, tail)
+		getNgrams(corpus, frequencies, "it has", head, tail)
 
-		# top choice
-		# XXX print results, compute accuracy based on output file
-		print(frequencies.get()[1])
+		# get the top choice
+		best = frequencies.get()[1][0]
+		if best == "it is" or best == "it has":
+			best = "it's"
+		guesses.append(best)
+
+	# compute accuracy based on output file
+	errors = sum([1 if x != y else 0 for x,y in zip(answers, guesses)])
+	accuracy = 1.0 - errors / len(answers)
+	print("Accuracy:", accuracy)
