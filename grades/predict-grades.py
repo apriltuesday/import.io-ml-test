@@ -1,9 +1,8 @@
 # April Shen -- 2015-09-09
 # Predict the Missing Grade (https://www.hackerrank.com/challenges/predict-missing-grade)
 
-import json
+import sys, json
 from math import log, exp
-from random import random
 from utils import Datum, DecisionStump
 
 # map feature string to index
@@ -72,7 +71,7 @@ def parseInput(filename):
 	content = open(filename).readlines()
 	for line in content[1:]:
 		record = json.loads(line)
-		x = [0] * numFeatures
+		x = [-1] * numFeatures #-1 indicates subject not present
 		label = None
 
 		for subject in record.keys():
@@ -126,8 +125,7 @@ def score(predictions):
 
 def train(numModels):
 	"""
-	Train ensemble of numModels decision stumps using (multiclass)
-	AdaBoost.
+	Train ensemble of numModels decision stumps using (multiclass) AdaBoost.
 	Return list of (m, a) where m is the decision stump and a is its
 	weight in the final ensemble.
 	"""
@@ -168,17 +166,22 @@ def test(ensemble):
 
 
 if __name__ == '__main__':
+	args = sys.argv
+	if len(args) < 2:
+		print("Usage: predict-grades.py <number of models>")
+		sys.exit()
+	numModels = int(args[1])
 	parseInput("training-and-test/training.json")
-	ensemble = train(25)
+	ensemble = train(numModels)
 	data = []
 	parseInput("training-and-test/sample-test.in.json")
 	parseOutput("training-and-test/sample-test.out.json")
 	predictions = test(ensemble)
 	accuracy = 1.0 - weightedError(predictions)
 	score = score(predictions)
-	print("Ensemble:")
-	for stump, alpha in ensemble:
-		print(alpha, stump.root, stump.classes)
-	print()
+	# print("Ensemble:")
+	# for stump, alpha in ensemble:
+	# 	print(alpha, stump.root, stump.labels)
+	# print()
 	print("Classification accuracy:", accuracy)
 	print("Hackerrank score:", score)
