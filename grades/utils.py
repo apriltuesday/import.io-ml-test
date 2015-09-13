@@ -1,5 +1,5 @@
 # April Shen -- 2015-09-09
-# Datum and Decision Stump classes
+# Extra classes for grade prediction -- Datum and Decision Stump
 from math import log
 from collections import Counter
 
@@ -8,8 +8,6 @@ class Datum:
 	A simple class to represent a data instance, with a feature
 	vector, a class label, and a weight.
 	"""
-
-
 	def __init__(self, x):
 		self.features = x
 		self.label = 0
