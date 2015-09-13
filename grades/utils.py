@@ -9,13 +9,13 @@ class Datum:
 	vector, a class label, and a weight.
 	"""
 
+
 	def __init__(self, x):
 		self.features = x
 		self.label = 0
 		self.weight = 0.0
 
 
-# XXX check the tree code, it seems the fishiest
 class DecisionStump:
 	"""
 	A decision tree with only one node (the root), trained by minimizing
@@ -32,7 +32,6 @@ class DecisionStump:
 
 	def classify(self, d):
 		# classification of d, based on its value of the root feature
-		# XXX don't guess based on -1?
 		return self.labels[d.features[self.root]+1]
 
 
@@ -43,8 +42,7 @@ class DecisionStump:
 		which count the number of data instances with a particular class
 		label for that branch of the tree.
 		"""
-		total = 0.0 
-		# XXX include -1 in entropy calculations?
+		total = 0.0
 		for j in featureVals:
 			# N_j is the total number of instances that are on branch j
 			N_j = sum([x[1] for x in split[j].items()])
@@ -96,6 +94,6 @@ class DecisionStump:
 		self.root = minEntFeat
 		# for each branch of the best split, assign the majority label
 		for i in featureVals:
-			if len(minEntSplit[i]) != 0: #XXX if nothing here, guess based on nearby groups
+			if len(minEntSplit[i]) != 0:
 				biggest =  max(minEntSplit[i].items(), key=lambda x: x[1])
 				self.labels[i] = biggest[0]

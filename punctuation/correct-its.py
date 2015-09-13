@@ -83,8 +83,19 @@ def parseOutput(filename):
 	answers = []
 	with open(filename) as f:
 		for line in f.readlines():
-			answers += re.findall("it'?s", line)
+			answers += re.findall("[iI]t'?s", line)
 	return [a.lower() for a in answers]
+
+
+def score(W, T):
+	"""
+	Computes HackerRank score, defined as follows.
+	C = # Correct
+	W = # Wrong
+	T = Total number of test instances
+	Score = 100 * (C-W)/T. 
+	"""
+	return 100 * float((T-W) - W) / T
 
 
 if __name__ == "__main__":
@@ -109,7 +120,14 @@ if __name__ == "__main__":
 			best = "it's"
 		guesses.append(best)
 
-	# compute accuracy based on output file
+	# print output; note this doesn't piece together
+	# sentences with multiple ???s
+	for w,(head,tail) in zip(guesses, contexts):
+		print(head + w + tail)
+	print()
+	# compute accuracy and score
 	errors = sum([1 if x != y else 0 for x,y in zip(answers, guesses)])
 	accuracy = 1.0 - errors / len(answers)
+	score = score(errors, len(answers))
 	print("Accuracy:", accuracy)
+	print("HackerRank score:", score)

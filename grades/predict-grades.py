@@ -170,18 +170,22 @@ if __name__ == '__main__':
 	if len(args) < 2:
 		print("Usage: predict-grades.py <number of models>")
 		sys.exit()
+	# train
 	numModels = int(args[1])
 	parseInput("training-and-test/training.json")
 	ensemble = train(numModels)
+	# test
 	data = []
 	parseInput("training-and-test/sample-test.in.json")
 	parseOutput("training-and-test/sample-test.out.json")
 	predictions = test(ensemble)
+	# compute accuracy and score
 	accuracy = 1.0 - weightedError(predictions)
 	score = score(predictions)
-	# print("Ensemble:")
-	# for stump, alpha in ensemble:
-	# 	print(alpha, stump.root, stump.labels)
-	# print()
+	# print the ensemble, mostly out of curiosity
+	print("Ensemble:")
+	for stump, alpha in ensemble:
+	 	print(alpha, stump.root, stump.labels)
+	print()
 	print("Classification accuracy:", accuracy)
-	print("Hackerrank score:", score)
+	print("HackerRank score:", score)
