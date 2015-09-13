@@ -20,32 +20,43 @@ class DecisionStump:
 	the entropy of the split.
 	"""
 
-	# constructor, numValues is the number of children
+	# numValues is both the number of possible feature values
+	# and the number of possible class labels
 	def __init__(self, numValues):
 		# feature at the root
 		self.root = 0
 		# class label for each possible value, chosen initially to be in the middle
-		self.labels = [int(numValues/2.0)] * (numValues+1) #+1 to account for missing subject
+		# of the possible class outputs
+		self.labels = [int(numValues/2.0)] * (numValues+1) # +1 to account for missing subject
 
 
 	def classify(self, d):
-		# classification of d, based on its value of the root feature
+		"""
+		Return classification of d, based on its value of the root feature.
+		"""
 		return self.labels[d.features[self.root]+1]
 
 
 	def splitEntropy(self, split, classLabels, featureVals):
 		"""
-		Compute entropy of this split
-		split is a list of Counters, one for each possible feature value,
+		Compute entropy of this split. Split entropy is the sum of the entropy
+		in class labels on each branch, multiplied by the number of instances
+		on that branch.
+
+		split: list of Counters, one for each possible feature value,
 		which count the number of data instances with a particular class
 		label for that branch of the tree.
+		classLabels: list of possible class values
+		featureVals: list of possible feature values (including -1 for missing)
 		"""
+		# note that all data is weighted here
 		total = 0.0
 		for j in featureVals:
 			# N_j is the total number of instances that are on branch j
 			N_j = sum([x[1] for x in split[j].items()])
 			if N_j == 0:
 				continue
+
 			# compute entropy of branch j
 			entropy = 0.0
 			for i in classLabels:
@@ -54,6 +65,7 @@ class DecisionStump:
 				if p_ij != 0:
 					# compute sum of entropy for each 
 					entropy += p_ij * log(p_ij)
+					
 			# split entropy is entropy of each branch weighted by proportion of data
 			# in that branch
 			total += N_j * entropy
@@ -63,32 +75,34 @@ class DecisionStump:
 	def train(self, data, numFeatures):
 		"""
 		Train on the weighted data, given the number of features.
+		Training is done by splitting on the feature that minimizes
+		split entropy, then assigning the majority label to each branch.
 		"""
-		# for each feature, measure the entropy of the split
-		# split on the feature that minimizes this
 		minEnt = float("inf")
 		minEntSplit = None
 		minEntFeat = 0
 		classLabels = range(len(self.labels))
 		#-1 when feature is absent, otherwise possible feature values same as possible class labels
 		featureVals = range(-1, len(self.labels))
+
 		for f in range(numFeatures):
-			# split is a list of groups for each possible value of f
-			# each group counts the number of data points with a particular
-			# label for this value of f
+			# split is a list of groups for each possible value of f.
+			# split[f] counts the number of data points with each class
+			# label for this value of f.
 			split = [Counter() for x in featureVals]
 			for d in data:
 				# note these are weighted counts
-				# +1 to feature value to account for missing subject
-				split[d.features[f]+1][d.label] += d.weight
+				# +1 to account for missing feature
+				split[d.features[f]+1][d.label] += d.weight 
 
-			#compute entropy of this split
+			# compute entropy of this split
 			entropy = self.splitEntropy(split, classLabels, featureVals)
 			if entropy < minEnt:
 				minEnt = entropy
 				minEntSplit = split
 				minEntFeat = f
 
+		# choose the split that minimizes entropy
 		self.root = minEntFeat
 		# for each branch of the best split, assign the majority label
 		for i in featureVals:

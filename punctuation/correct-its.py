@@ -1,50 +1,58 @@
-# April Shen -- 2015-09-11
+# April Shen -- 2015-09-10
 # The Punctuation Corrector (https://www.hackerrank.com/challenges/punctuation-corrector-its)
 import re
 from queue import PriorityQueue as PQ
 
 
+########################## FREQUENCIES ########################
+
+
 def getNgrams(corpus, frequencies, sub, head, tail):
     """
-    get bounds of head and tail (4 or fewer words away from end
-    where substitute goes). ngrams will store list of ngrams for
-    a particular substitute and context. We will care about ngrams
-    with length 2 <= n <= 5
+    Get ngrams of length 2 <= n <= 5 containing a particular
+    substitute word (it's or its) and find the number of their
+    occurences in the corpus. See Guiliano et al. 2007 on 
+    syntagmatic coherence.
+
+    corpus: corpus of text to search for ngrams
+    frequencies: priority queue, to rank substitutes by length
+    	of ngram and frequency in the corpus
+    sub: the candidate substitute word
+    head, tail: lists of words preceding and following sub
     """
     ngrams = []
-  
-    # head and tail are stored as lists of words parsed from context
-    # sentence (substitute goes between the two)
     # hLength and tLength are the maximum number of words we want
     # to include from head and tail, respectively  
     hLength = min(len(head), 4)
     tLength = min(len(tail), 4)
          
-    # Generates ngrams of lengths 2 <= n <= 5
+    # generate ngrams of lengths 2 <= n <= 5
     for i in range(0, hLength+1):
         for j in range(0, min(4-i+1, tLength+1)):
             ngram = list(head[len(head)-i:]) + [sub] + list(tail[:j])
             ngrams.append(ngram)
-    #remove ngram that is just sub
+    # remove ngram that is just sub alone
     ngrams.remove([sub])
 
     # for each ngram, find frequency
     for ngram in ngrams:
         freq = searchCorpus(corpus, ngram)
-        # if frequency is not zero, add the ngram triple to
-        #frequencies PQ. Priority is ranked by 1/n, then 1/frequency
+        # if frequency is not zero, add the substitute to the PQ.
+        # priority is ranked by 1/length, then 1/frequency
         if freq != 0:
             n = len(ngram)
-            frequencies.put(((1.0/n, 1.0/freq), (sub, n, freq)))
+            frequencies.put(((1.0/n, 1.0/freq), sub))
        
 
 def searchCorpus(corpus, ngram):
 	"""
-	Searches corpus for number of instances of an ngram.
+	Search corpus for an ngram and return the number of instances.
 	"""
 	words = " ".join(ngram)
-	count = corpus.count(words)
-	return count
+	return corpus.count(words)
+
+
+####################### FILE PARSING #########################
 
 
 def readCorpus():
@@ -58,26 +66,30 @@ def readCorpus():
 
 def parseInput(filename):
 	"""
-	Parses input file.
-	Return list of heads and tails, divided by ??? which are the 
-	locations of it's/its.
+	Parse input file.
+	Return list of contets (heads and tails), divided by ??? which
+	are the locations of it's/its.
+
+	If there are multiple instances of ???, we split them up into
+	separate contexts. For example,
+	A???B???C => (A,B) and (B,C)
 	"""
 	delimiter = "???"
-	parsed = []
+	contexts = []
 	with open(filename) as f:
 		for line in f.readlines()[1:]:
 			tup = tuple(line.lower().split(delimiter))
 			if len(tup) == 2:
-				parsed.append(tup)
+				contexts.append(tup)
 			else: # handle sentences with multipe ???
 				for i in range(len(tup)-1):
-					parsed.append((tup[i], tup[i+1]))
-	return parsed
+					contexts.append((tup[i], tup[i+1]))
+	return contexts
 
 
 def parseOutput(filename):
 	"""
-	Parses output file.
+	Parse gold standard output file.
 	Return a list of all the it's/its in order.
 	"""
 	answers = []
@@ -87,15 +99,19 @@ def parseOutput(filename):
 	return [a.lower() for a in answers]
 
 
+########################## MAIN ###########################
+
+
 def score(W, T):
 	"""
-	Computes HackerRank score, defined as follows.
+	Compute HackerRank score, defined as follows.
+
 	C = # Correct
 	W = # Wrong
 	T = Total number of test instances
 	Score = 100 * (C-W)/T. 
 	"""
-	return 100 * float((T-W) - W) / T
+	return 100.0 * ((T-W) - W) / T
 
 
 if __name__ == "__main__":
@@ -106,7 +122,8 @@ if __name__ == "__main__":
 	frequencies = PQ()
 	guesses = []
 
-	# search corpus for n-grams
+	# search corpus for n-grams containing "it's" and "its" inserted
+	# between head and tail
 	for head,tail in contexts:
 		getNgrams(corpus, frequencies, "its", head, tail)
 		getNgrams(corpus, frequencies, "it's", head, tail)
@@ -115,16 +132,17 @@ if __name__ == "__main__":
 		getNgrams(corpus, frequencies, "it has", head, tail)
 
 		# get the top choice
-		best = frequencies.get()[1][0]
+		best = frequencies.get()[1]
 		if best == "it is" or best == "it has":
 			best = "it's"
 		guesses.append(best)
 
-	# print output; note this doesn't piece together
-	# sentences with multiple ???s
+	# print output
+	# note this doesn't piece together sentences with multiple it's/its
 	for w,(head,tail) in zip(guesses, contexts):
 		print(head + w + tail)
 	print()
+
 	# compute accuracy and score
 	errors = sum([1 if x != y else 0 for x,y in zip(answers, guesses)])
 	accuracy = 1.0 - errors / len(answers)
